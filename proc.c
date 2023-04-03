@@ -221,7 +221,7 @@ fork(void)
   return pid;
 }
 
-int clone(void)
+int clone(int (fn)(void),void *stack , void *arg)
 {
   int i, pid;
   struct proc *np;
@@ -245,6 +245,8 @@ int clone(void)
 
   // Clear %eax so that fork returns 0 in the child.
   np->tf->eax = 0;
+  np->tf->esp = (uint)stack+PGSIZE;
+  np->tf->eip = (uint)fn;
 
   for(i = 0; i < NOFILE; i++)
     if(curproc->ofile[i])

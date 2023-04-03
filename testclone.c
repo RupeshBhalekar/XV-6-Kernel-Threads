@@ -7,43 +7,23 @@
 
 #define N  1000
 
-//void printf(int fd, const char *s, ...)
-//{
-//  write(fd, s, strlen(s));
-//}
+
+int test(){
+  printf(1,"test\n");
+  return 0;
+}
 
 void testclone(void)
 {
-  int n, pid;
-
-  printf(1, "fork test\n");
-
-  for(n=0; n<N; n++){
-    pid = clone();
-    if(pid < 0)
-      break;
-    if(pid == 0)
-      exit();
-  }
-
-  if(n == N){
-    printf(1, "fork claimed to work N times!\n", N);
+  int pid;
+  char *stack=malloc(4096);
+  int tmp=100;
+  printf(1, "clone test\n");
+  pid = clone(test,stack,&tmp);
+  if(pid == 0)
     exit();
-  }
-
-  for(; n > 0; n--){
-    if(wait() < 0){
-      printf(1, "wait stopped early\n");
-      exit();
-    }
-  }
-
-  if(wait() != -1){
-    printf(1, "wait got too many\n");
-    exit();
-  }
-
-  printf(1, "fork test OK\n");
+  free(stack);
+  printf(1, "clone test OK\n");
 }
 
 int

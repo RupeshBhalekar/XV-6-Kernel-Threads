@@ -16,9 +16,13 @@ sys_fork(void)
 int
 sys_clone(void)
 {
-  return clone();
+  int (*fn)(void);
+  void *arg;
+  char *stack;
+   if(argptr(0, (void*)&fn, sizeof(fn)) < 0 || argptr(2, (void*)&arg, sizeof(arg)) < 0 || argptr(1, (void*)&stack, sizeof(stack)) < 0)
+    return -1;
+  return clone(fn,stack,arg);
 }
-
 
 int
 sys_exit(void)
