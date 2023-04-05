@@ -221,11 +221,12 @@ fork(void)
   return pid;
 }
 
-int clone(int (fn)(void),void *stack , void *arg)
+int clone(int (*fn)(void*),void *stack , void *arg)
 {
   int i, pid;
   struct proc *np;
   struct proc *curproc = myproc();
+  int curptr=(uint)stack + PGSIZE;
 
   // Allocate process.
   if((np = allocproc()) == 0){
@@ -233,19 +234,28 @@ int clone(int (fn)(void),void *stack , void *arg)
   }
 
   // Copy process state from proc.
-  if((np->pgdir = copyuvm(curproc->pgdir, curproc->sz)) == 0){
-    kfree(np->kstack);
-    np->kstack = 0;
-    np->state = UNUSED;
-    return -1;
-  }
+  // if((np->pgdir = copyuvm(curproc->pgdir, curproc->sz)) == 0){
+  //   kfree(np->kstack);
+  //   np->kstack = 0;
+  //   np->state = UNUSED;
+  //   return -1;
+  // }
+
+  np->pgdir=curproc->pgdir;
   np->sz = curproc->sz;
   np->parent = curproc;
   *np->tf = *curproc->tf;
 
+  void * arg1, *ret_add;
+  arg1 = stack + PGSIZE - (sizeof(void *));
+  *(uint*)arg1 = (uint)arg;
+
+  ret_add = stack + PGSIZE - (2*sizeof(void *));
+  *(uint*)ret_add = 0xFFFFFFF;
+
   // Clear %eax so that fork returns 0 in the child.
   np->tf->eax = 0;
-  np->tf->esp = (uint)stack+PGSIZE;
+  np->tf->esp = curptr - 2 * sizeof(void*);
   np->tf->eip = (uint)fn;
 
   for(i = 0; i < NOFILE; i++)
@@ -262,6 +272,10 @@ int clone(int (fn)(void),void *stack , void *arg)
   np->state = RUNNABLE;
 
   release(&ptable.lock);
+
+  // cprintf("clone: fn=%p, stack=%p, arg=%p, esp=%p, eip=%p, edx=%p\n", fn, stack, arg, np->tf->esp, np->tf->eip, np->tf->edx);
+  // cprintf("Child process arg value: %d\n", np->tf->edx);
+
 
   return pid;
 }

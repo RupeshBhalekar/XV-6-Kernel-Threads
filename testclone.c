@@ -8,8 +8,9 @@
 #define N  1000
 
 
-int test(){
-  printf(1,"test\n");
+int test(void * arg){
+  int tmp = *(int*)arg;
+  printf(1,"test : %d\n", tmp);
   return 0;
 }
 
@@ -17,9 +18,10 @@ void testclone(void)
 {
   int pid;
   char *stack=malloc(4096);
-  int tmp=100;
+  int arg1=100;
   printf(1, "clone test\n");
-  pid = clone(test,stack,&tmp);
+
+  pid = clone(test,stack,&arg1);
   if(pid == 0)
     exit();
   free(stack);

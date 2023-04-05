@@ -16,7 +16,7 @@ sys_fork(void)
 int
 sys_clone(void)
 {
-  int (*fn)(void);
+  int (*fn)(void*);
   void *arg;
   char *stack;
    if(argptr(0, (void*)&fn, sizeof(fn)) < 0 || argptr(2, (void*)&arg, sizeof(arg)) < 0 || argptr(1, (void*)&stack, sizeof(stack)) < 0)
