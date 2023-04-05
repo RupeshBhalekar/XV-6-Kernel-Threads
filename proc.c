@@ -233,14 +233,6 @@ int clone(int (*fn)(void*),void *stack , void *arg)
     return -1;
   }
 
-  // Copy process state from proc.
-  // if((np->pgdir = copyuvm(curproc->pgdir, curproc->sz)) == 0){
-  //   kfree(np->kstack);
-  //   np->kstack = 0;
-  //   np->state = UNUSED;
-  //   return -1;
-  // }
-
   np->pgdir=curproc->pgdir;
   np->sz = curproc->sz;
   np->parent = curproc;
@@ -272,11 +264,6 @@ int clone(int (*fn)(void*),void *stack , void *arg)
   np->state = RUNNABLE;
 
   release(&ptable.lock);
-
-  // cprintf("clone: fn=%p, stack=%p, arg=%p, esp=%p, eip=%p, edx=%p\n", fn, stack, arg, np->tf->esp, np->tf->eip, np->tf->edx);
-  // cprintf("Child process arg value: %d\n", np->tf->edx);
-
-
   return pid;
 }
 
