@@ -268,8 +268,41 @@ int clone(int (*fn)(void*),void *stack , void *arg)
 }
 
 int join(int pid){
-    cprintf("In join\n");
-    return pid;
+  struct proc *curproc = myproc();
+  struct proc *p;
+  acquire(&ptable.lock);
+  for (;;) {
+    // Scan through table looking for exited children.
+    for (p = ptable.proc; p < &ptable.proc[NPROC]; p++) {
+      if (p->pid != curproc->pid && p->parent != curproc)
+        continue;
+
+      if (p->state == UNUSED)
+        continue;
+
+      // Found the thread.
+      if (p->state == ZOMBIE) {
+        // Clean up thread resources.
+        kfree(p->kstack);
+        p->kstack = 0;
+        p->state = UNUSED;
+        pid = p->pid;
+        p->pid = 0;
+        p->parent = 0;
+        p->name[0] = 0;
+        p->killed = 0;
+        release(&ptable.lock);
+        return pid;
+      }
+
+      // Wait for thread to exit.
+      sleep(curproc, &ptable.lock);
+    }
+
+    // Thread not found.
+    release(&ptable.lock);
+    return -1;
+  }
 }
 // Exit the current process.  Does not return.
 // Exit the current process.  Does not return.
