@@ -267,6 +267,10 @@ int clone(int (*fn)(void*),void *stack , void *arg)
   return pid;
 }
 
+int join(int pid){
+    cprintf("In join\n");
+    return pid;
+}
 // Exit the current process.  Does not return.
 // Exit the current process.  Does not return.
 // An exited process remains in the zombie state

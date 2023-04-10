@@ -25,6 +25,13 @@ sys_clone(void)
 }
 
 int
+sys_join(void){
+  int pid;
+  argint(0, &pid);
+  return join(pid);
+}
+
+int
 sys_exit(void)
 {
   exit();

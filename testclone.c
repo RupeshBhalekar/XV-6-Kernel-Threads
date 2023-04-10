@@ -11,7 +11,7 @@
 int test(void * arg){
   int tmp = *(int*)arg;
   printf(1,"test : %d\n", tmp);
-  return 0;
+  exit();
 }
 
 void testclone(void)
@@ -20,8 +20,8 @@ void testclone(void)
   char *stack=malloc(4096);
   int arg1=100;
   printf(1, "clone test\n");
-
   pid = clone(test,stack,&arg1);
+  join(pid);
   if(pid == 0)
     exit();
   free(stack);

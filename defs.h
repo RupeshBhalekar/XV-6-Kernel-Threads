@@ -107,6 +107,7 @@ int             cpuid(void);
 void            exit(void);
 int             fork(void);
 int             clone(int (*fn)(void*),void *stack, void *arg);
+int             join(int pid);
 int             growproc(int);
 int             kill(int);
 struct cpu*     mycpu(void);
