@@ -7,6 +7,8 @@
 #include "proc.h"
 #include "elf.h"
 
+#define USERTOP 0xC0000000
+
 extern char data[];  // defined by kernel.ld
 pde_t *kpgdir;  // for use in scheduler()
 

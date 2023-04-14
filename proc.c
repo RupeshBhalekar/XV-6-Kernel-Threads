@@ -6,6 +6,11 @@
 #include "x86.h"
 #include "proc.h"
 #include "spinlock.h"
+#include "sleeplock.h"
+#include "fcntl.h"
+#include "file.h"
+#include "fs.h"
+
 
 struct {
   struct spinlock lock;
@@ -221,12 +226,12 @@ fork(void)
   return pid;
 }
 
-int clone(int (*fn)(void*),void *stack , void *arg)
+int clone(int (*fn)(void*),void *stack , void *arg,int flags)
 {
   int i, pid;
   struct proc *np;
   struct proc *curproc = myproc();
-  int curptr=(uint)stack + PGSIZE;
+  int curptr=(uint)stack + PGSIZE ;
 
   // Allocate process.
   if((np = allocproc()) == 0){
@@ -237,6 +242,26 @@ int clone(int (*fn)(void*),void *stack , void *arg)
   np->sz = curproc->sz;
   np->parent = curproc;
   *np->tf = *curproc->tf;
+
+  if(flags & CLONE_FILES){
+    for(i = 0 ;i< NOFILE ;i++){
+      if(curproc->ofile[i]){
+        np->ofile[i] = filedup(curproc->ofile[i]);
+      }
+    }
+  }
+  else{
+    for(i = 0;i<NOFILE;i++){
+      if(curproc->ofile[i]){
+        np->ofile[i] = filealloc();
+        np->ofile[i]->type = curproc->ofile[i]->type;
+        np->ofile[i]->readable = curproc->ofile[i]->readable;
+        np->ofile[i]->writable = curproc->ofile[i]->writable;
+        np->ofile[i]->ip = idup(curproc->ofile[i]->ip);
+        np->ofile[i]->off = 0;
+        }
+    }
+  }
 
   void * arg1, *ret_add;
   arg1 = stack + PGSIZE - (sizeof(void *));
@@ -249,10 +274,6 @@ int clone(int (*fn)(void*),void *stack , void *arg)
   np->tf->eax = 0;
   np->tf->esp = curptr - 2 * sizeof(void*);
   np->tf->eip = (uint)fn;
-
-  for(i = 0; i < NOFILE; i++)
-    if(curproc->ofile[i])
-      np->ofile[i] = filedup(curproc->ofile[i]);
   np->cwd = idup(curproc->cwd);
 
   safestrcpy(np->name, curproc->name, sizeof(curproc->name));

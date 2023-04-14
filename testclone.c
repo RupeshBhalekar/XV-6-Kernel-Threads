@@ -1,12 +1,15 @@
-// Test that fork fails gracefully.
-// Tiny executable so that the limit can be filling the proc table.
-
 #include "types.h"
 #include "stat.h"
 #include "user.h"
+#include "fcntl.h"
 
-#define N  1000
-
+int func(void* arg) {
+  int fd = *(int*)arg;
+  char buf[128];
+  int n = read(fd, buf, sizeof(buf));
+  printf(1,"Child read %d bytes from file descriptor %d:\n%s\n", n, fd, buf);
+  exit();
+}
 
 int test(void * arg){
   int tmp = *(int*)arg;
@@ -20,17 +23,47 @@ void testclone(void)
   char *stack=malloc(4096);
   int arg1=100;
   printf(1, "clone test\n");
-  pid = clone(test,stack,&arg1);
-  join(pid);
+  pid = clone(test,stack,&arg1,CLONE_FILES);
   if(pid == 0)
     exit();
+  join(pid);
   free(stack);
-  printf(1, "clone test OK\n");
+  printf(1, "clone test OK\n\n");
 }
 
-int
-main(void)
-{
+void testCLONE_FILES(void){
+  void *stack = malloc(4096);
+  int flags = CLONE_FILES;
+
+  int fd = open("clone_file.txt", O_CREATE | O_RDWR);
+  char msg[128] = "Hello from parent!\n";
+  printf(1, "clone_file set\n");
+  write(fd, msg, strlen(msg));
+
+  int pid =clone(func, stack , &fd, flags);
+  if(pid == 0)
+    exit();
+  join(pid);
+
+  printf(1, "clone_file not set\n");
+  write(fd, msg, strlen(msg));
+  pid =clone(func, stack , &fd, 0);
+  if(pid == 0)
+    exit();
+  join(pid);
+  free(stack);
+  printf(1, "clone_file test OK\n\n");
+}
+
+int main(int argc, char *argv[]) {
   testclone();
+  testCLONE_FILES();
   exit();
 }
+
+
+
+
+
+
+
