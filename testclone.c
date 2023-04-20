@@ -17,6 +17,24 @@ int test(void * arg){
   exit();
 }
 
+int get_tid(void * arg){
+  printf(1,"child tid is : %d\n", gettid());
+  exit();
+}
+
+void test_gettid(void){
+  int tid;
+  char *stack=malloc(4096);
+  int arg1=100;
+  printf(1, "gettid test\n");
+  tid = clone(get_tid,stack,&arg1,CLONE_THREAD);
+  if(tid == 0)
+    exit();
+  join(tid);
+  printf(1, "parent returns tid = %d",tid );
+  free(stack);
+}
+
 void testclone(void)
 {
   int pid;
@@ -88,6 +106,7 @@ int main(int argc, char *argv[]) {
   testclone();
   testCLONE_FILES();
   testCLONE_THREADS();
+  test_gettid();
   exit();
 }
 

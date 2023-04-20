@@ -62,6 +62,12 @@ sys_getpid(void)
 }
 
 int
+sys_gettid(void)
+{
+  return myproc()->tid;
+}
+
+int
 sys_sbrk(void)
 {
   int addr;
