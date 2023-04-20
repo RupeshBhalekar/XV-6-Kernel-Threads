@@ -93,6 +93,7 @@ allocproc(void)
 found:
   p->state = EMBRYO;
   p->pid = nextpid++;
+  p->tid = -1;
 
   release(&ptable.lock);
 
@@ -228,7 +229,7 @@ fork(void)
 
 int clone(int (*fn)(void*),void *stack , void *arg,int flags)
 {
-  int i, pid;
+  int i, tid;
   struct proc *np;
   struct proc *curproc = myproc();
   int curptr=(uint)stack + PGSIZE ;
@@ -278,42 +279,73 @@ int clone(int (*fn)(void*),void *stack , void *arg,int flags)
 
   safestrcpy(np->name, curproc->name, sizeof(curproc->name));
 
-  pid = np->pid;
+  if((flags & CLONE_THREAD)){
+    np->tid = np->pid;
+    np->pid = curproc->pid;
+    tid = np->tid;
+  }
+  else{
+    np->tid = -1;
+    tid = np->pid;
+  }
 
   acquire(&ptable.lock);
 
   np->state = RUNNABLE;
 
   release(&ptable.lock);
-  return pid;
+  return tid;
 }
 
-int join(int pid){
+int join(int tid){
   struct proc *curproc = myproc();
   struct proc *p;
+  int flag=0;
+
+  if(tid == -1){
+    return -1;
+  }
+
+  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+    if(p->tid == -1){
+      if(p->pid == tid && p->parent == curproc) {
+        flag = 1;
+        break;
+      }
+    }
+    else{
+      if(p->tid == tid && p->parent == curproc) {
+        flag = 1;
+        break;
+      }
+    }
+  }
+
+  if(flag==0 || curproc->killed){
+    return -1;
+  }
+
   acquire(&ptable.lock);
   for (;;) {
-    // Scan through table looking for exited children.
-    for (p = ptable.proc; p < &ptable.proc[NPROC]; p++) {
-      if (p->pid != curproc->pid && p->parent != curproc)
-        continue;
 
-      if (p->state == UNUSED)
-        continue;
-
+    if(curproc->killed){
+      release(&ptable.lock);
+      return -1;
+    }
       // Found the thread.
       if (p->state == ZOMBIE) {
         // Clean up thread resources.
         kfree(p->kstack);
         p->kstack = 0;
         p->state = UNUSED;
-        pid = p->pid;
-        p->pid = 0;
+        p->pid=0;
+        tid = p->tid;
+        p->tid = 0;
         p->parent = 0;
         p->name[0] = 0;
         p->killed = 0;
         release(&ptable.lock);
-        return pid;
+        return tid;
       }
 
       // Wait for thread to exit.
@@ -323,8 +355,9 @@ int join(int pid){
     // Thread not found.
     release(&ptable.lock);
     return -1;
-  }
+
 }
+//}
 // Exit the current process.  Does not return.
 // Exit the current process.  Does not return.
 // An exited process remains in the zombie state
@@ -389,13 +422,14 @@ wait(void)
       if(p->parent != curproc)
         continue;
       havekids = 1;
-      if(p->state == ZOMBIE){
+      if(p->state == ZOMBIE && p->tid==-1){
         // Found one.
         pid = p->pid;
         kfree(p->kstack);
         p->kstack = 0;
         freevm(p->pgdir);
         p->pid = 0;
+        p->tid=0;
         p->parent = 0;
         p->name[0] = 0;
         p->killed = 0;
@@ -588,7 +622,7 @@ kill(int pid)
 
   acquire(&ptable.lock);
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
-    if(p->pid == pid){
+    if(p->pid == pid && p->tid == -1){
       p->killed = 1;
       // Wake process from sleep if necessary.
       if(p->state == SLEEPING)
@@ -600,6 +634,7 @@ kill(int pid)
   release(&ptable.lock);
   return -1;
 }
+
 
 //PAGEBREAK: 36
 // Print a process listing to console.  For debugging.

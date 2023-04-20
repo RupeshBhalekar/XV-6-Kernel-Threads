@@ -31,6 +31,35 @@ void testclone(void)
   printf(1, "clone test OK\n\n");
 }
 
+
+void testCLONE_THREADS(void)
+{
+  int tid;
+  char *stack=malloc(4096);
+  int arg1=100;
+  int flag1=0;
+  int flag2=CLONE_THREAD;
+  int ret_join;
+  printf(1, "clone_thread test\n");
+  printf(1, "clone_thread set\n");
+
+  tid = clone(test,stack,&arg1,flag2);
+  if(tid == 0)
+    exit();
+  ret_join=join(tid);
+  printf(1, "tid = %d , return value of join=%d\n",tid,ret_join);
+
+  printf(1, "clone_thread not et\n");
+  tid = clone(test,stack,&arg1,flag1);
+  if(tid == 0)
+    exit();
+  ret_join=join(tid);
+  printf(1, "tid = %d , return value of join=%d\n",tid,ret_join);
+
+  free(stack);
+  printf(1, "clone_thread test OK\n");
+}
+
 void testCLONE_FILES(void){
   void *stack = malloc(4096);
   int flags = CLONE_FILES;
@@ -58,6 +87,7 @@ void testCLONE_FILES(void){
 int main(int argc, char *argv[]) {
   testclone();
   testCLONE_FILES();
+  testCLONE_THREADS();
   exit();
 }
 
