@@ -3,6 +3,9 @@
 #include "user.h"
 #include "fcntl.h"
 
+int global_arg=10;
+int getid;
+
 int func(void* arg) {
   int fd = *(int*)arg;
   char buf[128];
@@ -17,8 +20,16 @@ int test(void * arg){
   exit();
 }
 
+
+int VMtest(void * arg){
+  int tmp = *(int*)arg;
+  global_arg++;
+  tmp++;
+  exit();
+}
+
 int get_tid(void * arg){
-  printf(1,"child tid is : %d\n", gettid());
+  getid=gettid();
   exit();
 }
 
@@ -26,12 +37,59 @@ void test_gettid(void){
   int tid;
   char *stack=malloc(4096);
   int arg1=100;
-  printf(1, "gettid test\n");
-  tid = clone(get_tid,stack,&arg1,CLONE_THREAD);
+  tid = clone(get_tid,stack,&arg1,CLONE_VM|CLONE_THREAD);
   if(tid == 0)
     exit();
   join(tid);
-  printf(1, "parent returns tid = %d",tid );
+  if(getid==tid){
+      printf(1, "Get_tid function passed successfully\n");
+  }
+  free(stack);
+}
+
+void test_tkill(void)
+{
+  int tid;
+  char *stack=malloc(4096);
+  tid = clone(test,stack,0,CLONE_THREAD);
+  if(tid == 0)
+    exit();
+  int ret ;
+  printf(1, "tid of parent/ group leader%d\n", tid);
+  ret= tkill(tid);
+  if (ret == 0) {
+    printf(1, "tkill: process with TID %d killed\n", tid);
+  } else if (ret == -1) {
+    printf(1, "tkill: process with TID %d has already terminated\n", tid);
+  } else {
+    printf(1, "tkill: process with TID %d is group leader\n", tid);
+  }
+  free(stack);
+}
+
+void testCLONE_VM(void)
+{
+  int pid;
+  char *stack=malloc(4096);
+  int arg1=100;
+  pid = clone(VMtest,stack,0, CLONE_VM);
+  sleep(5);
+  if(pid == 0)
+    exit();
+  join(pid);
+  if(global_arg==11) {
+    printf(1,"ClomeVM Flag passed\n");
+  }
+
+  pid = clone(VMtest,stack,&arg1, 0);
+  sleep(5);
+  if(pid == 0)
+    exit();
+  join(pid);
+  if(arg1==100) {
+    printf(1,"ClomeVM Flag failed\n");
+  }
+
   free(stack);
 }
 
@@ -46,7 +104,7 @@ void testclone(void)
     exit();
   join(pid);
   free(stack);
-  printf(1, "clone test OK\n\n");
+  printf(1, "clone test OK\n");
 }
 
 
@@ -75,7 +133,7 @@ void testCLONE_THREADS(void)
   printf(1, "tid = %d , return value of join=%d\n",tid,ret_join);
 
   free(stack);
-  printf(1, "clone_thread test OK\n");
+  printf(1, "clone_thread test OK\n\n");
 }
 
 void testCLONE_FILES(void){
@@ -103,7 +161,9 @@ void testCLONE_FILES(void){
 }
 
 int main(int argc, char *argv[]) {
+  test_tkill();
   testclone();
+  testCLONE_VM();
   testCLONE_FILES();
   testCLONE_THREADS();
   test_gettid();

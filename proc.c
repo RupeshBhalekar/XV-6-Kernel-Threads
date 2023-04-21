@@ -232,14 +232,24 @@ int clone(int (*fn)(void*),void *stack , void *arg,int flags)
   int i, tid;
   struct proc *np;
   struct proc *curproc = myproc();
-  int curptr=(uint)stack + PGSIZE ;
 
   // Allocate process.
   if((np = allocproc()) == 0){
     return -1;
   }
 
-  np->pgdir=curproc->pgdir;
+  if(flags & CLONE_VM){
+    np->pgdir = curproc->pgdir;
+  }
+  else{
+    if((np->pgdir = copyuvm(curproc->pgdir, curproc->sz)) == 0){
+      kfree(np->kstack);
+      np->kstack = 0;
+      np->state = UNUSED;
+      return -1;
+    }
+  }
+
   np->sz = curproc->sz;
   np->parent = curproc;
   *np->tf = *curproc->tf;
@@ -264,16 +274,17 @@ int clone(int (*fn)(void*),void *stack , void *arg,int flags)
     }
   }
 
-  void * arg1, *ret_add;
-  arg1 = stack + PGSIZE - (sizeof(void *));
-  *(uint*)arg1 = (uint)arg;
-
-  ret_add = stack + PGSIZE - (2*sizeof(void *));
-  *(uint*)ret_add = 0xFFFFFFF;
+  int array[2];
+  array[0] = 0xffffffff;
+  array[1] = (uint)arg;
+  uint sp=(uint)stack;
+  sp-=8;
+  if(copyout(np->pgdir, sp, array, 8) < 0)
+    return -1;
 
   // Clear %eax so that fork returns 0 in the child.
   np->tf->eax = 0;
-  np->tf->esp = curptr - 2 * sizeof(void*);
+  np->tf->esp = sp;
   np->tf->eip = (uint)fn;
   np->cwd = idup(curproc->cwd);
 
@@ -357,6 +368,7 @@ int join(int tid){
     return -1;
 
 }
+
 //}
 // Exit the current process.  Does not return.
 // Exit the current process.  Does not return.
@@ -610,6 +622,29 @@ wakeup(void *chan)
   acquire(&ptable.lock);
   wakeup1(chan);
   release(&ptable.lock);
+}
+
+int tkill(int tid){
+  struct proc * i;
+  acquire(&ptable.lock);
+  for(i = ptable.proc;i<&ptable.proc[NPROC];i++){
+    if(i->tid==-1){
+      if(i->pid==tid){
+        cprintf("kill\n");
+        return -2;
+      }
+    }
+    if(i->tid == tid){
+      i->killed=1;
+      if(i->state == SLEEPING){
+      i->state=RUNNABLE;
+      }
+      release(&ptable.lock);
+      return 0;
+    }
+  }
+  release(&ptable.lock);
+  return -1;
 }
 
 // Kill the process with the given pid.
