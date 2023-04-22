@@ -3,5 +3,13 @@ typedef struct thread_t{
     char * stack;
 }thread_t;
 
-int thread_create(thread_t *t,int (*fn) (void *),void* arg);
-int thread_join(thread_t*t);
+struct spinlock{
+    uint lock;
+};
+
+void initlock(struct spinlock *lk);
+void acquire(struct spinlock *lk);
+void release(struct spinlock *lk);
+int thread_create(int (*fn) (void *),void* arg);
+int thread_join(int tid);
+int thread_exit(int tid);

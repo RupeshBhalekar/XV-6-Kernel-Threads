@@ -277,7 +277,7 @@ int clone(int (*fn)(void*),void *stack , void *arg,int flags)
   int array[2];
   array[0] = 0xffffffff;
   array[1] = (uint)arg;
-  uint sp=(uint)stack;
+  uint sp=(uint)stack+4096;
   sp-=8;
   if(copyout(np->pgdir, sp, array, 8) < 0)
     return -1;

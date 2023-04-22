@@ -6,17 +6,42 @@
 int global_arg=10;
 int getid;
 
+struct data
+{ int a;
+  int b;
+};
+
+
 int func(void* arg) {
   int fd = *(int*)arg;
   char buf[128];
   int n = read(fd, buf, sizeof(buf));
-  printf(1,"Child read %d bytes from file descriptor %d:\n%s\n", n, fd, buf);
+  if(n==0){
+      printf(1,"CLONE_FILES set and passed\n");
+  }
+  else if(n%19==0){
+      printf(1,"CLONE_FILES not set and passed\n");
+  }
+  else{
+      printf(1,"CLONE_FILES failed\n");
+  }
   exit();
 }
 
 int test(void * arg){
   int tmp = *(int*)arg;
-  printf(1,"test : %d\n", tmp);
+  if(tmp==100){
+      printf(1,"Argument passed successfully\n");
+  }
+  exit();
+}
+
+int testmultiple(void * arg){
+  struct data *tmp = (struct data*)arg;
+  int x=tmp->a +tmp->b;
+  if(x==300){
+      printf(1,"Multiple Argument passed successfully\n");
+  }
   exit();
 }
 
@@ -55,7 +80,6 @@ void test_tkill(void)
   if(tid == 0)
     exit();
   int ret ;
-  printf(1, "tid of parent/ group leader%d\n", tid);
   ret= tkill(tid);
   if (ret == 0) {
     printf(1, "tkill: process with TID %d killed\n", tid);
@@ -78,7 +102,7 @@ void testCLONE_VM(void)
     exit();
   join(pid);
   if(global_arg==11) {
-    printf(1,"ClomeVM Flag passed\n");
+    printf(1,"ClomeVM Flag set and Passed\n");
   }
 
   pid = clone(VMtest,stack,&arg1, 0);
@@ -87,7 +111,7 @@ void testCLONE_VM(void)
     exit();
   join(pid);
   if(arg1==100) {
-    printf(1,"ClomeVM Flag failed\n");
+    printf(1,"ClomeVM Flag not set and Passed\n");
   }
 
   free(stack);
@@ -98,13 +122,25 @@ void testclone(void)
   int pid;
   char *stack=malloc(4096);
   int arg1=100;
-  printf(1, "clone test\n");
   pid = clone(test,stack,&arg1,CLONE_FILES);
   if(pid == 0)
     exit();
   join(pid);
   free(stack);
-  printf(1, "clone test OK\n");
+}
+
+void testclonemultiple(void)
+{
+  int pid;
+  char *stack=malloc(4096);
+  struct data *arg1=(struct data *)malloc(sizeof(struct data));
+  arg1->a=100;
+  arg1->b=200;
+  pid = clone(testmultiple,stack,arg1,CLONE_VM|CLONE_FILES);
+  if(pid == 0)
+    exit();
+  join(pid);
+  free(stack);
 }
 
 
@@ -116,24 +152,29 @@ void testCLONE_THREADS(void)
   int flag1=0;
   int flag2=CLONE_THREAD;
   int ret_join;
-  printf(1, "clone_thread test\n");
-  printf(1, "clone_thread set\n");
-
-  tid = clone(test,stack,&arg1,flag2);
+  tid = clone(get_tid,stack,&arg1,flag2);
   if(tid == 0)
     exit();
   ret_join=join(tid);
-  printf(1, "tid = %d , return value of join=%d\n",tid,ret_join);
+  if(tid==ret_join){
+      printf(1,"CLONE_THREAD set and Passed\n");
+  }
+  else{
+      printf(1, "CLONE_THREAD set and failed\n");
+  }
 
-  printf(1, "clone_thread not et\n");
-  tid = clone(test,stack,&arg1,flag1);
+  tid = clone(get_tid,stack,&arg1,flag1);
   if(tid == 0)
     exit();
   ret_join=join(tid);
-  printf(1, "tid = %d , return value of join=%d\n",tid,ret_join);
+  if(ret_join==-1){
+      printf(1,"CLONE_THREAD is not set and Passed\n");
+  }
+  else{
+      printf(1, "CLONE_THREAD is not set and failed\n");
+  }
 
   free(stack);
-  printf(1, "clone_thread test OK\n\n");
 }
 
 void testCLONE_FILES(void){
@@ -142,7 +183,6 @@ void testCLONE_FILES(void){
 
   int fd = open("clone_file.txt", O_CREATE | O_RDWR);
   char msg[128] = "Hello from parent!\n";
-  printf(1, "clone_file set\n");
   write(fd, msg, strlen(msg));
 
   int pid =clone(func, stack , &fd, flags);
@@ -150,23 +190,22 @@ void testCLONE_FILES(void){
     exit();
   join(pid);
 
-  printf(1, "clone_file not set\n");
   write(fd, msg, strlen(msg));
   pid =clone(func, stack , &fd, 0);
   if(pid == 0)
     exit();
   join(pid);
   free(stack);
-  printf(1, "clone_file test OK\n\n");
 }
 
 int main(int argc, char *argv[]) {
-  test_tkill();
+  test_gettid();
   testclone();
+  testclonemultiple();
+  test_tkill();
   testCLONE_VM();
   testCLONE_FILES();
   testCLONE_THREADS();
-  test_gettid();
   exit();
 }
 
