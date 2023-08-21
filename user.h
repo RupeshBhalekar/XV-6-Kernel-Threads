@@ -1,3 +1,4 @@
+
 struct stat;
 struct rtcdate;
 
@@ -10,6 +11,7 @@ int write(int, const void*, int);
 int read(int, void*, int);
 int close(int);
 int kill(int);
+int tkill(int);
 int exec(char*, char**);
 int open(const char*, int);
 int mknod(const char*, short, short);
@@ -20,9 +22,12 @@ int mkdir(const char*);
 int chdir(const char*);
 int dup(int);
 int getpid(void);
+int gettid(void);
 char* sbrk(int);
 int sleep(int);
 int uptime(void);
+int clone(int (*fn)(void*),void *stack , void *arg, int flags);
+int join(int pid);
 
 // ulib.c
 int stat(const char*, struct stat*);

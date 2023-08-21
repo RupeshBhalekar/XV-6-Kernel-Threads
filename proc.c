@@ -6,6 +6,11 @@
 #include "x86.h"
 #include "proc.h"
 #include "spinlock.h"
+#include "sleeplock.h"
+#include "fcntl.h"
+#include "file.h"
+#include "fs.h"
+
 
 struct {
   struct spinlock lock;
@@ -88,6 +93,7 @@ allocproc(void)
 found:
   p->state = EMBRYO;
   p->pid = nextpid++;
+  p->tid = -1;
 
   release(&ptable.lock);
 
@@ -221,6 +227,150 @@ fork(void)
   return pid;
 }
 
+int clone(int (*fn)(void*),void *stack , void *arg,int flags)
+{
+  int i, tid;
+  struct proc *np;
+  struct proc *curproc = myproc();
+
+  // Allocate process.
+  if((np = allocproc()) == 0){
+    return -1;
+  }
+
+  if(flags & CLONE_VM){
+    np->pgdir = curproc->pgdir;
+  }
+  else{
+    if((np->pgdir = copyuvm(curproc->pgdir, curproc->sz)) == 0){
+      kfree(np->kstack);
+      np->kstack = 0;
+      np->state = UNUSED;
+      return -1;
+    }
+  }
+
+  np->sz = curproc->sz;
+  np->parent = curproc;
+  *np->tf = *curproc->tf;
+
+  if(flags & CLONE_FILES){
+    for(i = 0 ;i< NOFILE ;i++){
+      if(curproc->ofile[i]){
+        np->ofile[i] = filedup(curproc->ofile[i]);
+      }
+    }
+  }
+  else{
+    for(i = 0;i<NOFILE;i++){
+      if(curproc->ofile[i]){
+        np->ofile[i] = filealloc();
+        np->ofile[i]->type = curproc->ofile[i]->type;
+        np->ofile[i]->readable = curproc->ofile[i]->readable;
+        np->ofile[i]->writable = curproc->ofile[i]->writable;
+        np->ofile[i]->ip = idup(curproc->ofile[i]->ip);
+        np->ofile[i]->off = 0;
+        }
+    }
+  }
+
+  int array[2];
+  array[0] = 0xffffffff;
+  array[1] = (uint)arg;
+  uint sp=(uint)stack+4096;
+  sp-=8;
+  if(copyout(np->pgdir, sp, array, 8) < 0)
+    return -1;
+
+  // Clear %eax so that fork returns 0 in the child.
+  np->tf->eax = 0;
+  np->tf->esp = sp;
+  np->tf->eip = (uint)fn;
+  np->cwd = idup(curproc->cwd);
+
+  safestrcpy(np->name, curproc->name, sizeof(curproc->name));
+
+  if((flags & CLONE_THREAD)){
+    np->tid = np->pid;
+    np->pid = curproc->pid;
+    tid = np->tid;
+  }
+  else{
+    np->tid = -1;
+    tid = np->pid;
+  }
+
+  acquire(&ptable.lock);
+
+  np->state = RUNNABLE;
+
+  release(&ptable.lock);
+  return tid;
+}
+
+int join(int tid){
+  struct proc *curproc = myproc();
+  struct proc *p;
+  int flag=0;
+
+  if(tid == -1){
+    return -1;
+  }
+
+  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+    if(p->tid == -1){
+      if(p->pid == tid && p->parent == curproc) {
+        flag = 1;
+        break;
+      }
+    }
+    else{
+      if(p->tid == tid && p->parent == curproc) {
+        flag = 1;
+        break;
+      }
+    }
+  }
+
+  if(flag==0 || curproc->killed){
+    return -1;
+  }
+
+  acquire(&ptable.lock);
+  for (;;) {
+
+    if(curproc->killed){
+      release(&ptable.lock);
+      return -1;
+    }
+      // Found the thread.
+      if (p->state == ZOMBIE) {
+        // Clean up thread resources.
+        kfree(p->kstack);
+        p->kstack = 0;
+        p->state = UNUSED;
+        p->pid=0;
+        tid = p->tid;
+        p->tid = 0;
+        p->parent = 0;
+        p->name[0] = 0;
+        p->killed = 0;
+        release(&ptable.lock);
+        return tid;
+      }
+
+      // Wait for thread to exit.
+      sleep(curproc, &ptable.lock);
+    }
+
+    // Thread not found.
+    release(&ptable.lock);
+    return -1;
+
+}
+
+//}
+// Exit the current process.  Does not return.
 // Exit the current process.  Does not return.
 // An exited process remains in the zombie state
 // until its parent calls wait() to find out it exited.
@@ -284,13 +434,14 @@ wait(void)
       if(p->parent != curproc)
         continue;
       havekids = 1;
-      if(p->state == ZOMBIE){
+      if(p->state == ZOMBIE && p->tid==-1){
         // Found one.
         pid = p->pid;
         kfree(p->kstack);
         p->kstack = 0;
         freevm(p->pgdir);
         p->pid = 0;
+        p->tid=0;
         p->parent = 0;
         p->name[0] = 0;
         p->killed = 0;
@@ -473,6 +624,29 @@ wakeup(void *chan)
   release(&ptable.lock);
 }
 
+int tkill(int tid){
+  struct proc * i;
+  acquire(&ptable.lock);
+  for(i = ptable.proc;i<&ptable.proc[NPROC];i++){
+    if(i->tid==-1){
+      if(i->pid==tid){
+        cprintf("kill\n");
+        return -2;
+      }
+    }
+    if(i->tid == tid){
+      i->killed=1;
+      if(i->state == SLEEPING){
+      i->state=RUNNABLE;
+      }
+      release(&ptable.lock);
+      return 0;
+    }
+  }
+  release(&ptable.lock);
+  return -1;
+}
+
 // Kill the process with the given pid.
 // Process won't exit until it returns
 // to user space (see trap in trap.c).
@@ -483,7 +657,7 @@ kill(int pid)
 
   acquire(&ptable.lock);
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
-    if(p->pid == pid){
+    if(p->pid == pid && p->tid == -1){
       p->killed = 1;
       // Wake process from sleep if necessary.
       if(p->state == SLEEPING)
@@ -495,6 +669,7 @@ kill(int pid)
   release(&ptable.lock);
   return -1;
 }
+
 
 //PAGEBREAK: 36
 // Print a process listing to console.  For debugging.

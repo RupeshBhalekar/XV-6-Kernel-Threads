@@ -14,6 +14,25 @@ sys_fork(void)
 }
 
 int
+sys_clone(void)
+{
+  int (*fn)(void*);
+  void *arg;
+  char *stack;
+  int flags;
+   if(argptr(0, (void*)&fn, sizeof(fn)) < 0 || argptr(2, (void*)&arg, sizeof(arg)) < 0 || argptr(1, (void*)&stack, sizeof(stack)) < 0 || argint(3, &flags) < 0)
+    return -1;
+  return clone(fn,stack,arg,flags);
+}
+
+int
+sys_join(void){
+  int pid;
+  argint(0, &pid);
+  return join(pid);
+}
+
+int
 sys_exit(void)
 {
   exit();
@@ -37,9 +56,25 @@ sys_kill(void)
 }
 
 int
+sys_tkill(void)
+{
+  int tid;
+
+  if(argint(0, &tid) < 0)
+    return -1;
+  return tkill(tid);
+}
+
+int
 sys_getpid(void)
 {
   return myproc()->pid;
+}
+
+int
+sys_gettid(void)
+{
+  return myproc()->tid;
 }
 
 int

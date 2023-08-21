@@ -2,3 +2,8 @@
 #define O_WRONLY  0x001
 #define O_RDWR    0x002
 #define O_CREATE  0x200
+#define CLONE_VM 0x1000
+#define CLONE_FS 0x2000
+#define CLONE_FILES 0x4000
+#define CLONE_PARENT 0x8000
+#define CLONE_THREAD 0x10000
